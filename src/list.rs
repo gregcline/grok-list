@@ -1,12 +1,13 @@
 use serde::{Serialize, Deserialize};
 use mongodb::bson;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct List {
-    _id: Option<bson::oid::ObjectId>,
-    #[serde(alias = "userId")]
-    user_id: bson::oid::ObjectId,
-    items: Vec<ListItem>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub _id: Option<bson::oid::ObjectId>,
+    #[serde(rename(serialize = "userId", deserialize = "userId"))]
+    pub user_id: bson::oid::ObjectId,
+    pub items: Vec<ListItem>,
 }
 
 impl List {
@@ -21,9 +22,9 @@ impl List {
 
 #[derive(Debug, Clone)]
 pub struct ListBuilder {
-    _id: Option<bson::oid::ObjectId>,
-    user_id: bson::oid::ObjectId,
-    items: Vec<ListItem>,
+    pub _id: Option<bson::oid::ObjectId>,
+    pub user_id: bson::oid::ObjectId,
+    pub items: Vec<ListItem>,
 }
 
 impl ListBuilder {
@@ -35,12 +36,17 @@ impl ListBuilder {
         }
     }
 
-    pub fn build(self) -> List {
+    pub fn build(&self) -> List {
         List {
-            _id: self._id,
-            user_id: self.user_id,
-            items: self.items,
+            _id: self._id.clone(),
+            user_id: self.user_id.clone(),
+            items: self.items.clone(),
         }
+    }
+
+    pub fn add_item<'a>(&'a mut self, item: &ListItem) -> &'a mut Self {
+        self.items.push(item.clone());
+        self
     }
 }
 
@@ -73,25 +79,21 @@ impl ListItemBuilder {
         }
     }
 
-    pub fn category(self, category: &str) -> Self {
-        ListItemBuilder {
-            category: Some(category.to_lowercase()),
-            ..self
-        }
+    pub fn category<'a>(&'a mut self, category: &str) -> &'a mut Self {
+        self.category = Some(category.to_lowercase());
+        self
     }
 
-    pub fn amount(self, amount: &str) -> Self {
-        ListItemBuilder {
-            amount: Some(amount.to_owned()),
-            ..self
-        }
+    pub fn amount<'a>(&'a mut self, amount: &str) -> &'a mut Self {
+        self.amount = Some(amount.to_owned());
+        self
     }
 
-    pub fn build(self) -> ListItem {
+    pub fn build(&self) -> ListItem {
         ListItem {
-            name: self.name,
-            category: self.category,
-            amount: self.amount,
+            name: self.name.clone(),
+            category: self.category.clone(),
+            amount: self.amount.clone(),
         }
     }
 }
@@ -129,7 +131,31 @@ mod test {
     }
 
     #[test]
-    fn list_can_add_multiple_items() {
+    fn list_builder_can_add_items() {
+        let user_id = bson::oid::ObjectId::new();
+        let item_1 = ListItem::builder("salmon")
+            .category("Meat")
+            .amount("1")
+            .build();
+        let item_2 = ListItem::builder("broccoli")
+            .category("produce")
+            .amount("2")
+            .build();
+        let item_3 = ListItem::builder("la croix")
+            .category("water")
+            .amount("3")
+            .build();
+        let list = List::builder(user_id.clone())
+            .add_item(&item_1)
+            .add_item(&item_2)
+            .add_item(&item_3)
+            .build();
+
+        assert_eq!(list.items, vec![item_1, item_2, item_3]);
+    }
+
+    #[test]
+    fn list_can_add_items() {
         let user_id = bson::oid::ObjectId::new();
         let mut list = List::builder(user_id.clone())
             .build();

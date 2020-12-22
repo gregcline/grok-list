@@ -7,8 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mongodb = "1.1.1"
 serde = { version = "1.0.118", features = ["derive"] }
+color-eyre = "0.5.10"
+thiserror = "1.0.22"
 
 [dependencies.rocket]
 git = "https://github.com/SergioBenitez/Rocket.git"
@@ -23,3 +24,12 @@ features = ["json", "helmet"]
 [dependencies.rocket_cors]
 git = "https://github.com/lawliet89/rocket_cors.git"
 branch = "master"
+
+[dependencies.tokio]
+version = "0.3.6"
+features = ["full"]
+
+[dependencies.mongodb]
+version = "1.1.1"
+default-features = false
+features = ["async-std-runtime"]
