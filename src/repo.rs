@@ -1,14 +1,17 @@
-use bson::{oid::ObjectId, to_document};
-use bson::Bson;
-use mongodb::{Client, Database, bson, bson::doc};
+use bson::{Bson, oid::ObjectId};
+use mongodb::{Client, Database, bson, bson::doc, error::Error as MongoDbError};
 use color_eyre::Result;
 use thiserror::Error;
-use super::list::{List, ListItem};
+use super::list::List;
 
 #[derive(Error, Debug)]
 pub enum RepoError {
     #[error("mongo returned something other than ObjectId for inserted_id")]
     NotObjectId,
+    #[error("mongo returned an error: {0:?}")]
+    MongoError(#[from] MongoDbError),
+    #[error("could not serialize to bson")]
+    BsonSer(#[from] bson::ser::Error)
 }
 
 pub struct Repo {
@@ -16,14 +19,14 @@ pub struct Repo {
 }
 
 impl Repo {
-    pub async fn new(conn_str: &str) -> Result<Self> {
+    pub async fn new(conn_str: &str) -> Result<Self, RepoError> {
         let client = Client::with_uri_str(conn_str).await?.database("grok_list");
         Ok(Repo {
             data_store: client,
         })
     }
 
-    pub async fn add_list(&self, list: &List) -> Result<Option<List>> {
+    pub async fn add_list(&self, list: &List) -> Result<Option<List>, RepoError> {
         let collection = self.data_store.collection("lists");
 
         let insert_result = collection.insert_one(bson::to_document(&list)?, None).await?;
@@ -35,7 +38,7 @@ impl Repo {
         Ok(inserted_list)
     }
 
-    pub async fn get_list_by_id(&self, id: &ObjectId) -> Result<Option<List>> {
+    pub async fn get_list_by_id(&self, id: &ObjectId) -> Result<Option<List>, RepoError> {
         let collection = self.data_store.collection("lists");
         let list = collection
             .find_one(doc! { "_id": id }, None)
@@ -47,7 +50,7 @@ impl Repo {
         Ok(list)
     }
 
-    pub async fn delete_list_by_id(&self, id: &ObjectId) -> Result<i64> {
+    pub async fn delete_list_by_id(&self, id: &ObjectId) -> Result<i64, RepoError> {
         let collection = self.data_store.collection("lists");
         let delete_result = collection.delete_one( doc! { "_id": id }, None)
             .await?;
@@ -58,6 +61,7 @@ impl Repo {
 #[cfg(test)]
 mod test {
     use super::*;
+    use super::super::list::ListItem;
     use tokio;
     use mongodb::bson::oid::ObjectId;
 
