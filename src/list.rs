@@ -1,17 +1,17 @@
 use serde::{Serialize, Deserialize};
-use mongodb::bson;
+use mongodb::bson::oid::ObjectId;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct List {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub _id: Option<bson::oid::ObjectId>,
+    pub _id: Option<ObjectId>,
     #[serde(rename(serialize = "userId", deserialize = "userId"))]
-    pub user_id: bson::oid::ObjectId,
+    pub user_id: ObjectId,
     pub items: Vec<ListItem>,
 }
 
 impl List {
-    pub fn builder(user_id: bson::oid::ObjectId) -> ListBuilder {
+    pub fn builder(user_id: ObjectId) -> ListBuilder {
         ListBuilder::new(user_id)
     }
 
@@ -22,13 +22,13 @@ impl List {
 
 #[derive(Debug, Clone)]
 pub struct ListBuilder {
-    pub _id: Option<bson::oid::ObjectId>,
-    pub user_id: bson::oid::ObjectId,
+    pub _id: Option<ObjectId>,
+    pub user_id: ObjectId,
     pub items: Vec<ListItem>,
 }
 
 impl ListBuilder {
-    pub fn new(user_id: bson::oid::ObjectId) -> Self {
+    pub fn new(user_id: ObjectId) -> Self {
         ListBuilder {
             _id: None,
             user_id: user_id,
@@ -123,7 +123,7 @@ mod test {
 
     #[test]
     fn list_builder_requires_a_user() {
-        let user_id = bson::oid::ObjectId::new();
+        let user_id = ObjectId::new();
         let list = List::builder(user_id.clone())
             .build();
 
@@ -132,7 +132,7 @@ mod test {
 
     #[test]
     fn list_builder_can_add_items() {
-        let user_id = bson::oid::ObjectId::new();
+        let user_id = ObjectId::new();
         let item_1 = ListItem::builder("salmon")
             .category("Meat")
             .amount("1")
@@ -156,7 +156,7 @@ mod test {
 
     #[test]
     fn list_can_add_items() {
-        let user_id = bson::oid::ObjectId::new();
+        let user_id = ObjectId::new();
         let mut list = List::builder(user_id.clone())
             .build();
 

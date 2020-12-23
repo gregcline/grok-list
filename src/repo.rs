@@ -2,7 +2,9 @@ use bson::{Bson, oid::ObjectId};
 use mongodb::{Client, Database, bson, bson::doc, error::Error as MongoDbError};
 use color_eyre::Result;
 use thiserror::Error;
+use serde::{Serialize, de::DeserializeOwned};
 use super::list::List;
+use super::store::Store;
 
 #[derive(Error, Debug)]
 pub enum RepoError {
@@ -11,7 +13,24 @@ pub enum RepoError {
     #[error("mongo returned an error: {0:?}")]
     MongoError(#[from] MongoDbError),
     #[error("could not serialize to bson")]
-    BsonSer(#[from] bson::ser::Error)
+    BsonSer(#[from] bson::ser::Error),
+    #[error("could not deserialize from bson")]
+    BsonDe(#[from] bson::de::Error),
+}
+
+#[derive(Debug)]
+enum Collections {
+    Lists,
+    Stores
+}
+
+impl std::fmt::Display for Collections {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Collections::Lists => write!(f, "lists"),
+            Collections::Stores => write!(f, "stores"),
+        }
+    }
 }
 
 pub struct Repo {
@@ -26,35 +45,58 @@ impl Repo {
         })
     }
 
-    pub async fn add_list(&self, list: &List) -> Result<Option<List>, RepoError> {
-        let collection = self.data_store.collection("lists");
+    async fn add_document<T: Serialize + DeserializeOwned>(&self, document: &T, collection_name: &Collections) -> Result<Option<T>, RepoError> {
+        let collection = self.data_store.collection(&collection_name.to_string());
 
-        let insert_result = collection.insert_one(bson::to_document(&list)?, None).await?;
-        let list_id = match insert_result.inserted_id {
+        let insert_result = collection.insert_one(bson::to_document(&document)?, None).await?;
+        let document_id = match insert_result.inserted_id {
             Bson::ObjectId(id) => Ok(id),
-            _ => Err(RepoError::NotObjectId)
+            _ => Err(RepoError::NotObjectId),
         }?;
-        let inserted_list = self.get_list_by_id(&list_id).await?;
-        Ok(inserted_list)
+        let inserted_document = self.get_document_by_id::<T>(&document_id, collection_name).await?;
+        Ok(inserted_document)
     }
 
-    pub async fn get_list_by_id(&self, id: &ObjectId) -> Result<Option<List>, RepoError> {
-        let collection = self.data_store.collection("lists");
-        let list = collection
+    async fn get_document_by_id<T: Serialize + DeserializeOwned>(&self, id: &ObjectId, collection: &Collections) -> Result<Option<T>, RepoError> {
+        let collection = self.data_store.collection(&collection.to_string());
+        let document = collection
             .find_one(doc! { "_id": id }, None)
             .await?
             .map(bson::from_document)
-            .map(Result::ok)
-            .flatten();
+            .transpose()?;
 
-        Ok(list)
+        Ok(document)
     }
 
-    pub async fn delete_list_by_id(&self, id: &ObjectId) -> Result<i64, RepoError> {
-        let collection = self.data_store.collection("lists");
+    async fn delete_document_by_id(&self, id: &ObjectId, collection: &Collections) -> Result<i64, RepoError> {
+        let collection = self.data_store.collection(&collection.to_string());
         let delete_result = collection.delete_one( doc! { "_id": id }, None)
             .await?;
         Ok(delete_result.deleted_count)
+    }
+
+    pub async fn add_list(&self, list: &List) -> Result<Option<List>, RepoError> {
+        self.add_document(list, &Collections::Lists).await
+    }
+
+    pub async fn get_list_by_id(&self, id: &ObjectId) -> Result<Option<List>, RepoError> {
+        self.get_document_by_id(id, &Collections::Lists).await
+    }
+
+    pub async fn delete_list_by_id(&self, id: &ObjectId) -> Result<i64, RepoError> {
+        self.delete_document_by_id(id, &Collections::Lists).await
+    }
+
+    pub async fn add_store(&self, store: &Store) -> Result<Option<Store>, RepoError> {
+        self.add_document(store, &Collections::Stores).await
+    }
+
+    pub async fn get_store_by_id(&self, id: &ObjectId) -> Result<Option<Store>, RepoError> {
+        self.get_document_by_id(id, &Collections::Stores).await
+    }
+
+    pub async fn delete_store_by_id(&self, id: &ObjectId) -> Result<i64, RepoError> {
+        self.delete_document_by_id(id, &Collections::Stores).await
     }
 }
 
@@ -65,9 +107,17 @@ mod test {
     use tokio;
     use mongodb::bson::oid::ObjectId;
 
+    const mongo_uri: &str = "mongodb://localhost:27017/";
+
+    #[derive(Error, Debug)]
+    enum TestError {
+        #[error("got None when reading our writes from mongo")]
+        NoneFromMongo,
+    }
+
     #[tokio::test]
     async fn can_insert_and_retrieve_lists_by_id() -> Result<()> {
-        let repo = Repo::new("mongodb://localhost:27017/").await.expect("Couldn't connect to mongo, is it running?");
+        let repo = Repo::new(mongo_uri).await.expect("Couldn't connect to mongo, is it running?");
         let list_item = ListItem::builder("salmon")
             .category("meat")
             .amount("2lb")
@@ -77,17 +127,40 @@ mod test {
             .build();
 
         let inserted_list = repo.add_list(&list)
-            .await?.ok_or(RepoError::NotObjectId)?;
+            .await?.ok_or(TestError::NoneFromMongo)?;
         let retrieved = repo.get_list_by_id(&inserted_list._id.clone().expect("Inserted list had no _id"))
             .await
             .expect("Error finding list")
-            .expect("Couldn't find the list");
+            .expect(&format!("List with id: {:?} did not exist", inserted_list._id.clone()));
 
         assert_eq!(retrieved.user_id, list.user_id);
         assert_eq!(retrieved.items, list.items);
 
         let items_deleted = repo.delete_list_by_id(&inserted_list._id.expect("Inserted list had no id")).await?;
         assert_eq!(1, items_deleted);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn can_insert_and_retrieve_categories_by_id() -> Result<()> {
+        let repo = Repo::new(mongo_uri).await.expect("Couldn't connect to mongo, is it running?");
+        let mut store = Store::new("test_store");
+        store.add_category("MEAT");
+        store.add_category("Produce");
+
+        let inserted_store = repo.add_store(&store)
+            .await?.ok_or(TestError::NoneFromMongo)?;
+        let retrieved = repo.get_store_by_id(&inserted_store._id.clone().expect("Inserted store had no _id"))
+            .await
+            .expect("Error finding store")
+            .expect(&format!("Store with id: {:?} did not exist", inserted_store._id.clone()));
+
+        assert_eq!(retrieved.name, store.name);
+        assert_eq!(retrieved.categories, store.categories);
+
+        let stores_deleted = repo.delete_store_by_id(&inserted_store._id.expect("Inserted store had no _id")).await?;
+        assert_eq!(1, stores_deleted);
 
         Ok(())
     }
