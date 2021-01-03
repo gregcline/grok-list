@@ -5,14 +5,15 @@ use mongodb::bson::oid::ObjectId;
 pub struct List {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub _id: Option<ObjectId>,
+    pub name: String,
     #[serde(rename(serialize = "userId", deserialize = "userId"))]
     pub user_id: ObjectId,
     pub items: Vec<ListItem>,
 }
 
 impl List {
-    pub fn builder(user_id: ObjectId) -> ListBuilder {
-        ListBuilder::new(user_id)
+    pub fn builder(name: String, user_id: ObjectId) -> ListBuilder {
+        ListBuilder::new(name, user_id)
     }
 
     pub fn add_item(&mut self, item: ListItem) {
@@ -23,14 +24,16 @@ impl List {
 #[derive(Debug, Clone)]
 pub struct ListBuilder {
     pub _id: Option<ObjectId>,
+    pub name: String,
     pub user_id: ObjectId,
     pub items: Vec<ListItem>,
 }
 
 impl ListBuilder {
-    pub fn new(user_id: ObjectId) -> Self {
+    pub fn new(name: String, user_id: ObjectId) -> Self {
         ListBuilder {
             _id: None,
+            name,
             user_id,
             items: Vec::new(),
         }
@@ -39,6 +42,7 @@ impl ListBuilder {
     pub fn build(&self) -> List {
         List {
             _id: self._id.clone(),
+            name: self.name.clone(),
             user_id: self.user_id.clone(),
             items: self.items.clone(),
         }
@@ -122,11 +126,13 @@ mod test {
     }
 
     #[test]
-    fn list_builder_requires_a_user() {
+    fn list_builder_requires_a_name_and_user() {
         let user_id = ObjectId::new();
-        let list = List::builder(user_id.clone())
+        let list_name = "test_list";
+        let list = List::builder(list_name.to_string(), user_id.clone())
             .build();
 
+        assert_eq!(list.name, list_name);
         assert_eq!(list.user_id, user_id);
     }
 
@@ -145,7 +151,7 @@ mod test {
             .category("water")
             .amount("3")
             .build();
-        let list = List::builder(user_id)
+        let list = List::builder("test_list".to_string(), user_id)
             .add_item(item_1.clone())
             .add_item(item_2.clone())
             .add_item(item_3.clone())
@@ -157,7 +163,7 @@ mod test {
     #[test]
     fn list_can_add_items() {
         let user_id = ObjectId::new();
-        let mut list = List::builder(user_id)
+        let mut list = List::builder("test_list".to_string(), user_id)
             .build();
 
         let item_1 = ListItem::builder("salmon")

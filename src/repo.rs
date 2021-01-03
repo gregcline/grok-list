@@ -121,7 +121,7 @@ mod test {
             .category("meat")
             .amount("2lb")
             .build();
-        let list = List::builder(ObjectId::new())
+        let list = List::builder("test_list".to_string(), ObjectId::new())
             .add_item(list_item)
             .build();
 
