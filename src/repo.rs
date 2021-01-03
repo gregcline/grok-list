@@ -104,10 +104,9 @@ impl Repo {
 mod test {
     use super::*;
     use super::super::list::ListItem;
-    use tokio;
     use mongodb::bson::oid::ObjectId;
 
-    const mongo_uri: &str = "mongodb://localhost:27017/";
+    const MONGO_URI: &str = "mongodb://localhost:27017/";
 
     #[derive(Error, Debug)]
     enum TestError {
@@ -117,13 +116,13 @@ mod test {
 
     #[tokio::test]
     async fn can_insert_and_retrieve_lists_by_id() -> Result<()> {
-        let repo = Repo::new(mongo_uri).await.expect("Couldn't connect to mongo, is it running?");
+        let repo = Repo::new(MONGO_URI).await.expect("Couldn't connect to mongo, is it running?");
         let list_item = ListItem::builder("salmon")
             .category("meat")
             .amount("2lb")
             .build();
         let list = List::builder(ObjectId::new())
-            .add_item(&list_item)
+            .add_item(list_item)
             .build();
 
         let inserted_list = repo.add_list(&list)
@@ -131,7 +130,7 @@ mod test {
         let retrieved = repo.get_list_by_id(&inserted_list._id.clone().expect("Inserted list had no _id"))
             .await
             .expect("Error finding list")
-            .expect(&format!("List with id: {:?} did not exist", inserted_list._id.clone()));
+            .unwrap_or_else(|| panic!("List with id: {:?} did not exist", inserted_list._id.clone()));
 
         assert_eq!(retrieved.user_id, list.user_id);
         assert_eq!(retrieved.items, list.items);
@@ -144,7 +143,7 @@ mod test {
 
     #[tokio::test]
     async fn can_insert_and_retrieve_categories_by_id() -> Result<()> {
-        let repo = Repo::new(mongo_uri).await.expect("Couldn't connect to mongo, is it running?");
+        let repo = Repo::new(MONGO_URI).await.expect("Couldn't connect to mongo, is it running?");
         let mut store = Store::new("test_store");
         store.add_category("MEAT");
         store.add_category("Produce");
@@ -154,7 +153,7 @@ mod test {
         let retrieved = repo.get_store_by_id(&inserted_store._id.clone().expect("Inserted store had no _id"))
             .await
             .expect("Error finding store")
-            .expect(&format!("Store with id: {:?} did not exist", inserted_store._id.clone()));
+            .unwrap_or_else(|| panic!("Store with id: {:?} did not exist", inserted_store._id.clone()));
 
         assert_eq!(retrieved.name, store.name);
         assert_eq!(retrieved.categories, store.categories);

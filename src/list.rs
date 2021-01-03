@@ -15,8 +15,8 @@ impl List {
         ListBuilder::new(user_id)
     }
 
-    pub fn add_item(&mut self, item: &ListItem) {
-        self.items.push(item.clone());
+    pub fn add_item(&mut self, item: ListItem) {
+        self.items.push(item);
     }
 }
 
@@ -31,7 +31,7 @@ impl ListBuilder {
     pub fn new(user_id: ObjectId) -> Self {
         ListBuilder {
             _id: None,
-            user_id: user_id,
+            user_id,
             items: Vec::new(),
         }
     }
@@ -44,8 +44,8 @@ impl ListBuilder {
         }
     }
 
-    pub fn add_item<'a>(&'a mut self, item: &ListItem) -> &'a mut Self {
-        self.items.push(item.clone());
+    pub fn add_item(&mut self, item: ListItem) -> &mut Self {
+        self.items.push(item);
         self
     }
 }
@@ -145,10 +145,10 @@ mod test {
             .category("water")
             .amount("3")
             .build();
-        let list = List::builder(user_id.clone())
-            .add_item(&item_1)
-            .add_item(&item_2)
-            .add_item(&item_3)
+        let list = List::builder(user_id)
+            .add_item(item_1.clone())
+            .add_item(item_2.clone())
+            .add_item(item_3.clone())
             .build();
 
         assert_eq!(list.items, vec![item_1, item_2, item_3]);
@@ -157,7 +157,7 @@ mod test {
     #[test]
     fn list_can_add_items() {
         let user_id = ObjectId::new();
-        let mut list = List::builder(user_id.clone())
+        let mut list = List::builder(user_id)
             .build();
 
         let item_1 = ListItem::builder("salmon")
@@ -173,9 +173,9 @@ mod test {
             .amount("3")
             .build();
 
-        list.add_item(&item_1);
-        list.add_item(&item_2);
-        list.add_item(&item_3);
+        list.add_item(item_1.clone());
+        list.add_item(item_2.clone());
+        list.add_item(item_3.clone());
 
         assert_eq!(list.items, vec![item_1, item_2, item_3]);
     }
