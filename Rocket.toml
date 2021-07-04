@@ -1,0 +1,7 @@
+[default]
+database_url = "mongodb://localhost:27017/"
+database_name = "grok_list"
+
+[test]
+database_url = "mongodb://localhost:27017/"
+database_name = "grok_list_test"
