@@ -10,26 +10,15 @@ edition = "2018"
 serde = { version = "1.0.118", features = ["derive"] }
 color-eyre = "0.5.10"
 thiserror = "1.0.22"
-
-[dependencies.rocket]
-git = "https://github.com/SergioBenitez/Rocket.git"
-branch = "master"
-
-[dependencies.rocket_contrib]
-git = "https://github.com/SergioBenitez/Rocket.git"
-branch = "master"
-default-features = false
-features = ["json", "helmet"]
-
-[dependencies.rocket_cors]
-git = "https://github.com/lawliet89/rocket_cors.git"
-branch = "master"
+futures = "0.3.8"
+rocket = {version = "0.5.0-rc.1", features = ["json"]}
+tap = "1.0.1"
 
 [dependencies.tokio]
 version = "0.3.6"
 features = ["full"]
 
 [dependencies.mongodb]
-version = "1.1.1"
+version = "1.2.2"
 default-features = false
 features = ["async-std-runtime"]
