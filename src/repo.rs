@@ -46,8 +46,8 @@ pub struct Repo {
 }
 
 impl Repo {
-    pub async fn new(conn_str: &str) -> Result<Self, RepoError> {
-        let client = Client::with_uri_str(conn_str).await?.database("grok_list");
+    pub async fn new(conn_str: &str, db_name: &str) -> Result<Self, RepoError> {
+        let client = Client::with_uri_str(conn_str).await?.database(db_name);
         Ok(Repo { data_store: client })
     }
 
@@ -190,6 +190,7 @@ mod test {
     use mongodb::bson::oid::ObjectId;
 
     const MONGO_URI: &str = "mongodb://localhost:27017/";
+    const TEST_DB_NAME: &str = "grok_list_test";
 
     #[derive(Error, Debug)]
     enum TestError {
@@ -197,9 +198,18 @@ mod test {
         NoneFromMongo,
     }
 
+    async fn clean_up_db(conn_str: &str, db_name: &str) -> Result<()> {
+        let client = Client::with_uri_str(conn_str).await?.database(db_name);
+        client.collection(&Collections::Lists.to_string()).delete_many(doc! {}, None).await?;
+        client.collection(&Collections::Stores.to_string()).delete_many(doc! {}, None).await?;
+        client.collection(&Collections::Users.to_string()).delete_many(doc! {}, None).await?;
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn can_insert_and_retrieve_lists_by_id() -> Result<()> {
-        let repo = Repo::new(MONGO_URI)
+        let repo = Repo::new(MONGO_URI, TEST_DB_NAME)
             .await
             .expect("Couldn't connect to mongo, is it running?");
         let list_item = ListItem::builder("salmon")
@@ -233,12 +243,12 @@ mod test {
             .await?;
         assert_eq!(1, items_deleted);
 
-        Ok(())
+        clean_up_db(MONGO_URI, TEST_DB_NAME).await
     }
 
     #[tokio::test]
     async fn can_insert_and_retrieve_categories_by_id() -> Result<()> {
-        let repo = Repo::new(MONGO_URI)
+        let repo = Repo::new(MONGO_URI, TEST_DB_NAME)
             .await
             .expect("Couldn't connect to mongo, is it running?");
         let mut store = Store::new("test_store");
@@ -273,12 +283,12 @@ mod test {
             .await?;
         assert_eq!(1, stores_deleted);
 
-        Ok(())
+        clean_up_db(MONGO_URI, TEST_DB_NAME).await
     }
 
     #[tokio::test]
     async fn can_insert_user() -> Result<()> {
-        let repo = Repo::new(MONGO_URI)
+        let repo = Repo::new(MONGO_URI, TEST_DB_NAME)
             .await
             .expect("Couldn't connect to mongo, is it running?");
         let user = User::new("test_user".to_string(), "test@email.com".to_string());
@@ -296,12 +306,12 @@ mod test {
         assert_eq!(retrieved.name, user.name);
         assert_eq!(retrieved.email, user.email);
 
-        Ok(())
+        clean_up_db(MONGO_URI, TEST_DB_NAME).await
     }
 
     #[tokio::test]
     async fn can_fetch_lists_by_user() -> Result<()> {
-        let repo = Repo::new(MONGO_URI)
+        let repo = Repo::new(MONGO_URI, TEST_DB_NAME)
             .await
             .expect("Couldn't connect to mongo, is it running?");
         let user = User::new("test_user".to_string(), "test@email.com".to_string());
@@ -336,12 +346,12 @@ mod test {
 
         assert_eq!(lists, vec![inserted_list]);
 
-        Ok(())
+        clean_up_db(MONGO_URI, TEST_DB_NAME).await
     }
 
     #[tokio::test]
     async fn can_add_items_to_existing_list() -> Result<()> {
-        let repo = Repo::new(MONGO_URI)
+        let repo = Repo::new(MONGO_URI, TEST_DB_NAME)
             .await
             .expect("Couldn't connect to mongo, is it running?");
 
@@ -372,6 +382,6 @@ mod test {
         assert_eq!(list.name, updated_list.name);
         assert_eq!(vec![list_item, new_list_item], updated_list.items);
 
-        Ok(())
+        clean_up_db(MONGO_URI, TEST_DB_NAME).await
     }
 }
