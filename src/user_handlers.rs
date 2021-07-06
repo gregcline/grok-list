@@ -2,7 +2,6 @@ use rocket::{State, http::Status, post, serde::{json::Json}};
 use serde::{Serialize, Deserialize};
 use mongodb::bson::oid::ObjectId;
 use rocket::error;
-use tap::Tap;
 
 use crate::repo::{Repo, RepoError};
 use crate::user::User as RepoUser;
